@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Islamic Quiz</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+body{margin:0;background:#f4f7f5;font-family:Arial,sans-serif;color:#17251d}
+header{background:#0b6b43;color:white;padding:22px;border-radius:0 0 24px 24px}
+main{padding:16px;max-width:600px;margin:auto}
+.card{background:white;border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 3px 15px #0001}
+button{width:100%;padding:14px;border:0;border-radius:12px;margin:7px 0;background:#0b6b43;color:white;font-size:16px}
+.option{background:#eef5f1;color:#173528;text-align:left}
+.small{opacity:.8;font-size:13px}
+.hidden{display:none}
+#adBox{padding:15px;text-align:center;background:#fff3cd;border-radius:14px}
+</style>
+</head>
+<body>
+<header>
+  <h2>🕌 Islamic Quiz</h2>
+  <div id="user">Telegram Mini App</div>
+</header>
+<main>
+  <div class="card" id="home">
+    <h3>আসসালামু আলাইকুম 🌙</h3>
+    <p>ইসলামিক জ্ঞান যাচাই করুন এবং পয়েন্ট সংগ্রহ করুন।</p>
+    <button onclick="startQuiz()">📖 কুইজ শুরু করুন</button>
+    <button onclick="showLeaderboard()">🏆 Leaderboard</button>
+  </div>
+
+  <div id="quiz" class="card hidden">
+    <div id="progress"></div>
+    <h3 id="question"></h3>
+    <div id="options"></div>
+  </div>
+
+  <div id="result" class="card hidden">
+    <h2>🎉 কুইজ শেষ!</h2>
+    <p id="scoreText"></p>
+    <div id="adBox">📺 Reward Ad-এর জায়গা<br><span class="small">Monetag Zone ID বসালে এখানে বিজ্ঞাপন চালু হবে</span></div>
+    <button onclick="showHome()">🏠 Home</button>
+  </div>
+
+  <div id="leaders" class="card hidden">
+    <h2>🏆 Leaderboard</h2>
+    <div id="leaderList"></div>
+    <button onclick="showHome()">🏠 Home</button>
+  </div>
+</main>
+<script>
+const tg=window.Telegram?.WebApp;
+if(tg){tg.ready();tg.expand();}
+const user=tg?.initDataUnsafe?.user;
+document.getElementById("user").textContent=user?`👤 ${user.first_name||"User"}`:"Telegram User";
+
+let quizzes=[], index=0, score=0;
+
+async function load(){ quizzes=await fetch("/api/quizzes").then(r=>r.json()); }
+async function startQuiz(){
+  await load(); index=0; score=0;
+  hideAll(); document.getElementById("quiz").classList.remove("hidden"); render();
+}
+function render(){
+  const q=quizzes[index];
+  document.getElementById("progress").textContent=`প্রশ্ন ${index+1}/${quizzes.length}`;
+  document.getElementById("question").textContent=q.question;
+  const box=document.getElementById("options"); box.innerHTML="";
+  q.options.forEach((x,i)=>{
+    const b=document.createElement("button"); b.className="option"; b.textContent=x;
+    b.onclick=()=>answer(i); box.appendChild(b);
+  });
+}
+function answer(i){
+  if(i===quizzes[index].answer) score++;
+  index++;
+  if(index<quizzes.length) render(); else finish();
+}
+async function finish(){
+  hideAll(); document.getElementById("result").classList.remove("hidden");
+  document.getElementById("scoreText").textContent=`আপনার স্কোর: ${score}/${quizzes.length}`;
+  const telegramId=user?.id||"demo";
+  await fetch("/api/score",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({telegramId,name:user?.first_name||"User",points:score})});
+}
+async function showLeaderboard(){
+  hideAll(); document.getElementById("leaders").classList.remove("hidden");
+  const data=await fetch("/api/leaderboard").then(r=>r.json());
+  document.getElementById("leaderList").innerHTML=data.length
+    ? data.map((u,i)=>`<p><b>${i+1}. ${esc(u.name)}</b> — ${u.points} পয়েন্ট</p>`).join("")
+    :"এখনও কোনো স্কোর নেই।";
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));}
+function showHome(){hideAll();document.getElementById("home").classList.remove("hidden")}
+function hideAll(){["home","quiz","result","leaders"].forEach(x=>document.getElementById(x).classList.add("hidden"))}
+</script>
+</body>
+</html>
